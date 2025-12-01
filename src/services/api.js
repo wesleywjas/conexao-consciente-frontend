@@ -18,6 +18,18 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Interceptor para tratar erros
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token');
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
+
 // Auth
 export const cadastrarUsuario = (data) => api.post('/auth/cadastro', data);
 export const loginUsuario = (data) => api.post('/auth/login', data);
