@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Heart, Users, Building2, BookOpen, TrendingUp, Calendar, Home, Newspaper, Info, Send, BarChart3, FileText, Upload, Menu, X } from 'lucide-react';
-import { cadastrarUsuario, loginUsuario } from './services/api';
-import { criarRelato } from './services/api';
+import { cadastrarUsuario, loginUsuario, loginInstituicao, cadastrarInstituicao, criarRelato, listarRelatos, getEstatisticas, criarNoticia, listarNoticias, deletarNoticia } from './services/api';
 
 const App = () => {
   const [currentScreen, setCurrentScreen] = useState('home');
@@ -478,95 +477,309 @@ const FamiliarScreen = ({ formData, setFormData, submitted, setSubmitted, setScr
 };
 
 const InstituicaoScreen = ({ setScreen }) => {
-  const [email, setEmail] = useState('');
-  const [senha, setSenha] = useState('');
+  const [activeTab, setActiveTab] = useState('login');
+  const [loginData, setLoginData] = useState({ email: '', senha: '' });
+  const [cadastroData, setCadastroData] = useState({
+    nome: '',
+    email: '',
+    senha: '',
+    confirmarSenha: '',
+    tipo: ''
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [loggedIn, setLoggedIn] = useState(false);
 
-  const handleLogin = () => {
-    // Simulação de login - aqui você conectará com sua API
-    if (email && senha) {
+  const handleLogin = async () => {
+    if (!loginData.email || !loginData.senha) {
+      setError('Por favor, preencha email e senha');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await loginInstituicao(loginData);
+
+      // Salvar token e dados da instituição
+      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('instituicao', JSON.stringify(response.data.instituicao));
+
+      alert('Login realizado com sucesso!');
       setLoggedIn(true);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Erro ao fazer login');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCadastro = async () => {
+    if (!cadastroData.nome || !cadastroData.email || !cadastroData.senha || !cadastroData.tipo) {
+      setError('Por favor, preencha todos os campos');
+      return;
+    }
+    if (cadastroData.senha !== cadastroData.confirmarSenha) {
+      setError('As senhas não coincidem');
+      return;
+    }
+    if (cadastroData.senha.length < 6) {
+      setError('A senha deve ter pelo menos 6 caracteres');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const { confirmarSenha, ...dataToSend } = cadastroData;
+      await cadastrarInstituicao(dataToSend);
+
+      alert('Cadastro realizado! Aguarde a aprovação do administrador para acessar o sistema.');
+      setActiveTab('login');
+    } catch (err) {
+      setError(err.response?.data?.error || 'Erro ao cadastrar');
+    } finally {
+      setLoading(false);
     }
   };
 
   // Dashboard após login
   if (loggedIn) {
-    return <DashboardInstitucional setScreen={setScreen} setLoggedIn={setLoggedIn} email={email} />;
+    return <DashboardInstitucional setScreen={setScreen} setLoggedIn={setLoggedIn} />;
   }
 
-  // Tela de login
+  // Tela de login/cadastro
   return (
-    <div className="min-h-screen flex items-center justify-center p-6">
-      <div className="max-w-xl w-full bg-white rounded-3xl shadow-2xl p-8 md:p-12">
+    <div className="min-h-screen flex items-center justify-center p-6 bg-gradient-to-br from-purple-50 to-purple-100">
+      <div className="max-w-xl w-full bg-white rounded-3xl shadow-2xl overflow-hidden">
         <button 
           onClick={() => setScreen('home')}
-          className="text-blue-600 hover:text-blue-800 mb-6 flex items-center gap-2"
+          className="text-purple-600 hover:text-purple-800 m-6 flex items-center gap-2 font-semibold"
         >
           ← Voltar
         </button>
-        
-        <div className="flex justify-center mb-6">
-          <Building2 className="w-16 h-16 text-purple-600" />
-        </div>
-        
-        <h2 className="text-3xl font-bold text-center text-purple-900 mb-8">
-          Painel de Instituições
-        </h2>
-        
-        <div className="space-y-6 mb-8">
-          <div>
-            <label className="block text-gray-700 font-semibold mb-2">
-              E-mail institucional
-            </label>
-            <input 
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-purple-600 focus:outline-none"
-              placeholder="instituicao@email.com"
-            />
-          </div>
-          
-          <div>
-            <label className="block text-gray-700 font-semibold mb-2">
-              Senha
-            </label>
-            <input 
-              type="password"
-              value={senha}
-              onChange={(e) => setSenha(e.target.value)}
-              className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-purple-600 focus:outline-none"
-              placeholder="••••••••"
-            />
-          </div>
-          
-          <button 
-            onClick={handleLogin}
-            className="w-full bg-purple-600 hover:bg-purple-700 text-white py-4 px-6 rounded-xl font-semibold transition-all shadow-lg"
-          >
-            Entrar
-          </button>
-        </div>
-        
 
+        <div className="px-8 pb-8">
+          <div className="flex justify-center mb-6">
+            <Building2 className="w-16 h-16 text-purple-600" />
+          </div>
+          
+          <h2 className="text-3xl font-bold text-center text-purple-900 mb-2">
+            Painel de Instituições
+          </h2>
+          <p className="text-center text-gray-600 mb-8">
+            Acesse ou cadastre sua instituição
+          </p>
+
+          {/* Tabs */}
+          <div className="flex border-b-2 border-gray-200 mb-6">
+            <button
+              onClick={() => setActiveTab('login')}
+              className={`flex-1 py-3 font-semibold transition-all ${
+                activeTab === 'login'
+                  ? 'text-purple-600 border-b-2 border-purple-600 -mb-0.5'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Entrar
+            </button>
+            <button
+              onClick={() => setActiveTab('cadastro')}
+              className={`flex-1 py-3 font-semibold transition-all ${
+                activeTab === 'cadastro'
+                  ? 'text-purple-600 border-b-2 border-purple-600 -mb-0.5'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Cadastrar Instituição
+            </button>
+          </div>
+
+          {error && (
+            <div className="bg-red-50 border-l-4 border-red-600 p-4 mb-6 rounded">
+              <p className="text-red-800">{error}</p>
+            </div>
+          )}
+
+          {/* Conteúdo das Tabs */}
+          {activeTab === 'login' ? (
+            <div className="space-y-6">
+              <div>
+                <label className="block text-gray-700 font-semibold mb-2">
+                  E-mail institucional
+                </label>
+                <input
+                  type="email"
+                  value={loginData.email}
+                  onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
+                  className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-purple-600 focus:outline-none"
+                  placeholder="instituicao@email.com"
+                  disabled={loading}
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-semibold mb-2">
+                  Senha
+                </label>
+                <input
+                  type="password"
+                  value={loginData.senha}
+                  onChange={(e) => setLoginData({ ...loginData, senha: e.target.value })}
+                  className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-purple-600 focus:outline-none"
+                  placeholder="••••••••"
+                  disabled={loading}
+                />
+              </div>
+
+              <button
+                onClick={handleLogin}
+                disabled={loading}
+                className="w-full bg-purple-600 hover:bg-purple-700 text-white py-4 px-6 rounded-xl font-semibold transition-all shadow-lg disabled:opacity-50"
+              >
+                {loading ? 'Entrando...' : 'Entrar'}
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div>
+                <label className="block text-gray-700 font-semibold mb-2">
+                  Nome da Instituição
+                </label>
+                <input
+                  type="text"
+                  value={cadastroData.nome}
+                  onChange={(e) => setCadastroData({ ...cadastroData, nome: e.target.value })}
+                  className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-purple-600 focus:outline-none"
+                  placeholder="Nome completo da instituição"
+                  disabled={loading}
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-semibold mb-2">
+                  E-mail institucional
+                </label>
+                <input
+                  type="email"
+                  value={cadastroData.email}
+                  onChange={(e) => setCadastroData({ ...cadastroData, email: e.target.value })}
+                  className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-purple-600 focus:outline-none"
+                  placeholder="contato@instituicao.com"
+                  disabled={loading}
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-semibold mb-2">
+                  Tipo de Instituição
+                </label>
+                <select
+                  value={cadastroData.tipo}
+                  onChange={(e) => setCadastroData({ ...cadastroData, tipo: e.target.value })}
+                  className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-purple-600 focus:outline-none"
+                  disabled={loading}
+                >
+                  <option value="">Selecione...</option>
+                  <option value="universidade">Universidade</option>
+                  <option value="ong">ONG</option>
+                  <option value="governo">Órgão Governamental</option>
+                  <option value="hospital">Hospital/Clínica</option>
+                  <option value="escola">Escola</option>
+                  <option value="outro">Outro</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-semibold mb-2">
+                  Senha (mínimo 6 caracteres)
+                </label>
+                <input
+                  type="password"
+                  value={cadastroData.senha}
+                  onChange={(e) => setCadastroData({ ...cadastroData, senha: e.target.value })}
+                  className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-purple-600 focus:outline-none"
+                  placeholder="••••••••"
+                  disabled={loading}
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-semibold mb-2">
+                  Confirmar Senha
+                </label>
+                <input
+                  type="password"
+                  value={cadastroData.confirmarSenha}
+                  onChange={(e) => setCadastroData({ ...cadastroData, confirmarSenha: e.target.value })}
+                  className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-purple-600 focus:outline-none"
+                  placeholder="••••••••"
+                  disabled={loading}
+                />
+              </div>
+
+              <button
+                onClick={handleCadastro}
+                disabled={loading}
+                className="w-full bg-purple-600 hover:bg-purple-700 text-white py-4 px-6 rounded-xl font-semibold transition-all shadow-lg disabled:opacity-50"
+              >
+                {loading ? 'Cadastrando...' : 'Cadastrar Instituição'}
+              </button>
+
+              <div className="bg-yellow-50 border-l-4 border-yellow-600 p-4 rounded">
+                <p className="text-yellow-800 text-sm">
+                  ⚠️ Após o cadastro, sua instituição passará por análise antes de ser aprovada.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
 };
 
-const DashboardInstitucional = ({ setScreen, setLoggedIn, email }) => {
+const DashboardInstitucional = ({ setScreen, setLoggedIn }) => {
   const [activeTab, setActiveTab] = useState('overview');
-  
-  const stats = [
-    { label: 'Total de Relatos', value: '1,234', icon: FileText, color: 'blue' },
-    { label: 'Novos (últimos 7 dias)', value: '89', icon: TrendingUp, color: 'green' },
-    { label: 'Publicações Ativas', value: '23', icon: BookOpen, color: 'purple' },
-    { label: 'Visualizações', value: '5,678', icon: BarChart3, color: 'orange' }
-  ];
+  const [instituicao, setInstituicao] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    carregarDados();
+  }, []);
+
+  const carregarDados = async () => {
+    try {
+      // Buscar dados da instituição logada
+      const instituicaoData = localStorage.getItem('instituicao');
+      if (instituicaoData) {
+        setInstituicao(JSON.parse(instituicaoData));
+      }
+    } catch (error) {
+      console.error('Erro ao carregar dados:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('instituicao');
     setLoggedIn(false);
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Carregando...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -578,7 +791,7 @@ const DashboardInstitucional = ({ setScreen, setLoggedIn, email }) => {
               <Building2 className="w-8 h-8" />
               <div>
                 <h1 className="text-2xl font-bold">Painel Institucional</h1>
-                <p className="text-purple-200 text-sm">{email}</p>
+                <p className="text-purple-200 text-sm">{instituicao?.nome || 'Instituição'}</p>
               </div>
             </div>
             <div className="flex gap-3">
@@ -602,38 +815,17 @@ const DashboardInstitucional = ({ setScreen, setLoggedIn, email }) => {
 
       <div className="max-w-7xl mx-auto px-6 py-8">
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {stats.map((stat, index) => {
-            const Icon = stat.icon;
-            const colors = {
-              blue: 'bg-blue-100 text-blue-600',
-              green: 'bg-green-100 text-green-600',
-              purple: 'bg-purple-100 text-purple-600',
-              orange: 'bg-orange-100 text-orange-600'
-            };
-            return (
-              <div key={index} className="bg-white rounded-2xl shadow-md p-6 hover:shadow-lg transition-all">
-                <div className="flex items-center justify-between mb-4">
-                  <div className={`w-12 h-12 ${colors[stat.color]} rounded-full flex items-center justify-center`}>
-                    <Icon className="w-6 h-6" />
-                  </div>
-                </div>
-                <p className="text-gray-600 text-sm mb-1">{stat.label}</p>
-                <p className="text-3xl font-bold text-gray-900">{stat.value}</p>
-              </div>
-            );
-          })}
-        </div>
+        <EstatisticasCards />
 
         {/* Tabs */}
-        <div className="bg-white rounded-2xl shadow-md overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-md overflow-hidden mt-8">
           <div className="border-b border-gray-200">
             <div className="flex overflow-x-auto">
               {[
                 { id: 'overview', label: 'Visão Geral', icon: BarChart3 },
                 { id: 'relatos', label: 'Banco de Relatos', icon: FileText },
                 { id: 'publicar', label: 'Publicar Conteúdo', icon: Upload },
-                { id: 'relatorios', label: 'Relatórios', icon: TrendingUp }
+                { id: 'noticias', label: 'Minhas Publicações', icon: Newspaper }
               ].map(tab => {
                 const Icon = tab.icon;
                 return (
@@ -656,9 +848,9 @@ const DashboardInstitucional = ({ setScreen, setLoggedIn, email }) => {
 
           <div className="p-6">
             {activeTab === 'overview' && <OverviewTab />}
-            {activeTab === 'relatos' && <RelatosTab />}
-            {activeTab === 'publicar' && <PublicarTab />}
-            {activeTab === 'relatorios' && <RelatoriosTab />}
+            {activeTab === 'relatos' && <RelatosTabReal />}
+            {activeTab === 'publicar' && <PublicarTabReal />}
+            {activeTab === 'noticias' && <MinhasNoticiasTab />}
           </div>
         </div>
       </div>
@@ -2097,6 +2289,607 @@ const Footer = ({ setScreen }) => {
         </div>
       </div>
     </footer>
+  );
+};
+
+const EstatisticasCards = () => {
+  const [stats, setStats] = useState({
+    total: 0,
+    ultimos7Dias: 0
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    carregarEstatisticas();
+  }, []);
+
+  const carregarEstatisticas = async () => {
+    try {
+      const response = await getEstatisticas();
+      setStats(response.data.estatisticas);
+    } catch (error) {
+      console.error('Erro ao carregar estatísticas:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        {[1, 2, 3, 4].map(i => (
+          <div key={i} className="bg-white rounded-2xl shadow-md p-6 animate-pulse">
+            <div className="w-12 h-12 bg-gray-200 rounded-full mb-4"></div>
+            <div className="h-4 bg-gray-200 rounded w-1/2 mb-2"></div>
+            <div className="h-8 bg-gray-200 rounded w-3/4"></div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  const statsData = [
+    { label: 'Total de Relatos', value: stats.total, icon: FileText, color: 'blue' },
+    { label: 'Novos (últimos 7 dias)', value: stats.ultimos7Dias, icon: TrendingUp, color: 'green' },
+    { label: 'Taxa de Crescimento', value: stats.total > 0 ? `${Math.round((stats.ultimos7Dias / stats.total) * 100)}%` : '0%', icon: BarChart3, color: 'purple' },
+    { label: 'Média Diária', value: Math.round(stats.ultimos7Dias / 7), icon: Calendar, color: 'orange' }
+  ];
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {statsData.map((stat, index) => {
+        const Icon = stat.icon;
+        const colors = {
+          blue: 'bg-blue-100 text-blue-600',
+          green: 'bg-green-100 text-green-600',
+          purple: 'bg-purple-100 text-purple-600',
+          orange: 'bg-orange-100 text-orange-600'
+        };
+        return (
+          <div key={index} className="bg-white rounded-2xl shadow-md p-6 hover:shadow-lg transition-all">
+            <div className="flex items-center justify-between mb-4">
+              <div className={`w-12 h-12 ${colors[stat.color]} rounded-full flex items-center justify-center`}>
+                <Icon className="w-6 h-6" />
+              </div>
+            </div>
+            <p className="text-gray-600 text-sm mb-1">{stat.label}</p>
+            <p className="text-3xl font-bold text-gray-900">{stat.value}</p>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+const RelatosTabReal = () => {
+  const [relatos, setRelatos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [relatoSelecionado, setRelatoSelecionado] = useState(null);
+
+  useEffect(() => {
+    carregarRelatos();
+  }, []);
+
+  const carregarRelatos = async () => {
+    try {
+      const response = await listarRelatos();
+      setRelatos(response.data.relatos);
+    } catch (err) {
+      setError('Erro ao carregar relatos');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="text-center py-12">
+        <div className="w-16 h-16 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+        <p className="text-gray-600">Carregando relatos...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-50 border-l-4 border-red-600 p-6 rounded">
+        <p className="text-red-800">{error}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h3 className="text-2xl font-bold text-gray-900">Banco de Relatos</h3>
+        <div className="text-sm text-gray-600">
+          Total: <span className="font-bold text-purple-600">{relatos.length}</span> relatos
+        </div>
+      </div>
+
+      <div className="bg-yellow-50 border-l-4 border-yellow-600 p-4 rounded">
+        <p className="text-yellow-800 text-sm">
+          ⚠️ <strong>Lembrete:</strong> Todos os dados são anônimos. Não é possível identificar indivíduos.
+        </p>
+      </div>
+
+      {relatos.length === 0 ? (
+        <div className="text-center py-12 bg-gray-50 rounded-2xl">
+          <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+          <p className="text-gray-600 text-lg">Nenhum relato disponível ainda</p>
+          <p className="text-gray-500 text-sm mt-2">Os relatos aparecerão aqui assim que forem enviados</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {relatos.map(relato => (
+            <div key={relato.id} className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-md transition-all">
+              <div className="flex justify-between items-start mb-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
+                    <Users className="w-5 h-5 text-purple-600" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-900">
+                      {relato.usuario?.nome || 'Usuário Anônimo'}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      {relato.usuario?.relacao || 'Relação não informada'}
+                    </p>
+                  </div>
+                </div>
+                <span className="text-sm text-gray-500">
+                  {new Date(relato.createdAt).toLocaleDateString('pt-BR')}
+                </span>
+              </div>
+
+              <div className="space-y-3 mb-4">
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Convivência</p>
+                  <p className="text-gray-700 line-clamp-2">{relato.convivencia}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Mudanças</p>
+                  <p className="text-gray-700 line-clamp-2">{relato.mudancas}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase mb-1">O que ajuda/atrapalha</p>
+                  <p className="text-gray-700 line-clamp-2">{relato.ajuda}</p>
+                </div>
+              </div>
+
+              <button 
+                onClick={() => setRelatoSelecionado(relato)}
+                className="text-purple-600 hover:text-purple-800 font-semibold text-sm flex items-center gap-2"
+              >
+                Ver relato completo →
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Modal de Relato Completo */}
+      {relatoSelecionado && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-6 z-50" onClick={() => setRelatoSelecionado(null)}>
+          <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto p-8" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-start mb-6">
+              <div>
+                <h3 className="text-2xl font-bold text-gray-900 mb-2">Relato Completo</h3>
+                <p className="text-gray-600">
+                  {relatoSelecionado.usuario?.nome} - {relatoSelecionado.usuario?.relacao}
+                </p>
+                <p className="text-sm text-gray-500 mt-1">
+                  {new Date(relatoSelecionado.createdAt).toLocaleDateString('pt-BR', { 
+                    day: '2-digit', 
+                    month: 'long', 
+                    year: 'numeric' 
+                  })}
+                </p>
+              </div>
+              <button 
+                onClick={() => setRelatoSelecionado(null)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              <div className="bg-blue-50 rounded-xl p-6">
+                <h4 className="font-bold text-blue-900 mb-3 flex items-center gap-2">
+                  <span className="text-xl">💬</span>
+                  Como é a convivência com o dependente?
+                </h4>
+                <p className="text-gray-700 leading-relaxed">{relatoSelecionado.convivencia}</p>
+              </div>
+
+              <div className="bg-purple-50 rounded-xl p-6">
+                <h4 className="font-bold text-purple-900 mb-3 flex items-center gap-2">
+                  <span className="text-xl">🔄</span>
+                  O que mudou no comportamento dele?
+                </h4>
+                <p className="text-gray-700 leading-relaxed">{relatoSelecionado.mudancas}</p>
+              </div>
+
+              <div className="bg-green-50 rounded-xl p-6">
+                <h4 className="font-bold text-green-900 mb-3 flex items-center gap-2">
+                  <span className="text-xl">🎯</span>
+                  O que ajuda ou atrapalha no convívio?
+                </h4>
+                <p className="text-gray-700 leading-relaxed">{relatoSelecionado.ajuda}</p>
+              </div>
+            </div>
+
+            <button 
+              onClick={() => setRelatoSelecionado(null)}
+              className="w-full mt-6 bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-xl font-semibold transition-all"
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const PublicarTabReal = () => {
+  const [formData, setFormData] = useState({
+    titulo: '',
+    categoria: '',
+    conteudo: '',
+    icone: '📰'
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+
+  const iconesPorCategoria = {
+    pesquisa: '🔬',
+    evento: '📅',
+    estudo: '📊',
+    campanha: '📢',
+    noticia: '📰'
+  };
+
+  const handleSubmit = async () => {
+    if (!formData.titulo || !formData.categoria || !formData.conteudo) {
+      setError('Por favor, preencha todos os campos obrigatórios');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const dataToSend = {
+        ...formData,
+        icone: iconesPorCategoria[formData.categoria] || '📰'
+      };
+
+      await criarNoticia(dataToSend);
+      
+      setSuccess(true);
+      setFormData({
+        titulo: '',
+        categoria: '',
+        conteudo: '',
+        icone: '📰'
+      });
+
+      setTimeout(() => setSuccess(false), 5000);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Erro ao publicar notícia');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-2xl font-bold text-gray-900 mb-2">Publicar Material Educativo</h3>
+        <p className="text-gray-600">Compartilhe conhecimento, pesquisas e eventos com a comunidade</p>
+      </div>
+
+      {error && (
+        <div className="bg-red-50 border-l-4 border-red-600 p-4 rounded">
+          <p className="text-red-800">{error}</p>
+        </div>
+      )}
+
+      {success && (
+        <div className="bg-green-50 border-l-4 border-green-600 p-4 rounded">
+          <p className="text-green-800 flex items-center gap-2">
+            <span className="text-xl">✅</span>
+            Publicação realizada com sucesso!
+          </p>
+        </div>
+      )}
+
+      <div className="space-y-4">
+        <div>
+          <label className="block text-gray-700 font-semibold mb-2">
+            Título <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="text"
+            value={formData.titulo}
+            onChange={(e) => setFormData({ ...formData, titulo: e.target.value })}
+            className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-purple-600 focus:outline-none"
+            placeholder="Ex: Como identificar sinais de dependência digital"
+            disabled={loading}
+          />
+        </div>
+
+        <div>
+          <label className="block text-gray-700 font-semibold mb-2">
+            Categoria <span className="text-red-500">*</span>
+          </label>
+          <select
+            value={formData.categoria}
+            onChange={(e) => setFormData({ ...formData, categoria: e.target.value })}
+            className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-purple-600 focus:outline-none"
+            disabled={loading}
+          >
+            <option value="">Selecione uma categoria</option>
+            <option value="pesquisa">🔬 Pesquisa Científica</option>
+            <option value="evento">📅 Evento</option>
+            <option value="estudo">📊 Estudo de Caso</option>
+            <option value="campanha">📢 Campanha de Conscientização</option>
+            <option value="noticia">📰 Notícia</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-gray-700 font-semibold mb-2">
+            Conteúdo <span className="text-red-500">*</span>
+          </label>
+          <textarea
+            value={formData.conteudo}
+            onChange={(e) => setFormData({ ...formData, conteudo: e.target.value })}
+            className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-purple-600 focus:outline-none min-h-64 resize-y"
+            placeholder="Escreva o conteúdo completo da publicação..."
+            disabled={loading}
+          />
+          <p className="text-sm text-gray-500 mt-2">
+            {formData.conteudo.length} caracteres
+          </p>
+        </div>
+
+        <div className="bg-blue-50 border-l-4 border-blue-600 p-4 rounded">
+          <p className="text-blue-900 text-sm">
+            <strong>💡 Dica:</strong> Publique conteúdos relevantes e baseados em evidências. 
+            Sua contribuição ajuda a educar e conscientizar a comunidade.
+          </p>
+        </div>
+
+        <div className="flex gap-4">
+          <button 
+            onClick={() => setFormData({ titulo: '', categoria: '', conteudo: '', icone: '📰' })}
+            className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-4 px-6 rounded-xl font-semibold transition-all disabled:opacity-50"
+            disabled={loading}
+          >
+            Limpar
+          </button>
+          <button 
+            onClick={handleSubmit}
+            disabled={loading}
+            className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-4 px-6 rounded-xl font-semibold transition-all shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {loading ? (
+              <>
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                Publicando...
+              </>
+            ) : (
+              <>
+                <Upload className="w-5 h-5" />
+                Publicar Agora
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const MinhasNoticiasTab = () => {
+  const [noticias, setNoticias] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [noticiaSelecionada, setNoticiaSelecionada] = useState(null);
+
+  useEffect(() => {
+    carregarNoticias();
+  }, []);
+
+  const carregarNoticias = async () => {
+    try {
+      const response = await listarNoticias();
+      
+      // Filtrar apenas as notícias da instituição logada
+      const instituicao = JSON.parse(localStorage.getItem('instituicao'));
+      const minhasNoticias = response.data.noticias.filter(
+        noticia => noticia.autorId === instituicao.id
+      );
+      
+      setNoticias(minhasNoticias);
+    } catch (err) {
+      setError('Erro ao carregar notícias');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Tem certeza que deseja deletar esta publicação?')) {
+      return;
+    }
+
+    try {
+      await deletarNoticia(id);
+      setNoticias(noticias.filter(n => n.id !== id));
+      setNoticiaSelecionada(null);
+      alert('Publicação deletada com sucesso!');
+    } catch (err) {
+      alert('Erro ao deletar publicação');
+      console.error(err);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="text-center py-12">
+        <div className="w-16 h-16 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+        <p className="text-gray-600">Carregando publicações...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-50 border-l-4 border-red-600 p-6 rounded">
+        <p className="text-red-800">{error}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h3 className="text-2xl font-bold text-gray-900">Minhas Publicações</h3>
+          <p className="text-gray-600 mt-1">Gerencie seus conteúdos publicados</p>
+        </div>
+        <div className="text-sm text-gray-600">
+          Total: <span className="font-bold text-purple-600">{noticias.length}</span> publicações
+        </div>
+      </div>
+
+      {noticias.length === 0 ? (
+        <div className="text-center py-12 bg-gray-50 rounded-2xl">
+          <Newspaper className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+          <p className="text-gray-600 text-lg">Você ainda não publicou nenhum conteúdo</p>
+          <p className="text-gray-500 text-sm mt-2">Comece compartilhando conhecimento na aba "Publicar Conteúdo"</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {noticias.map(noticia => (
+            <div key={noticia.id} className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-lg transition-all">
+              <div className="flex items-start gap-4 mb-4">
+                <div className="text-4xl">{noticia.icone}</div>
+                <div className="flex-1">
+                  <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold mb-2 ${
+                    noticia.categoria === 'pesquisa' ? 'bg-blue-100 text-blue-700' :
+                    noticia.categoria === 'evento' ? 'bg-green-100 text-green-700' :
+                    noticia.categoria === 'estudo' ? 'bg-purple-100 text-purple-700' :
+                    noticia.categoria === 'campanha' ? 'bg-orange-100 text-orange-700' :
+                    'bg-gray-100 text-gray-700'
+                  }`}>
+                    {noticia.categoria === 'pesquisa' ? 'Pesquisa' :
+                     noticia.categoria === 'evento' ? 'Evento' :
+                     noticia.categoria === 'estudo' ? 'Estudo' :
+                     noticia.categoria === 'campanha' ? 'Campanha' :
+                     'Notícia'}
+                  </span>
+                  <h4 className="font-bold text-gray-900 mb-2 line-clamp-2">{noticia.titulo}</h4>
+                  <p className="text-gray-600 text-sm line-clamp-3 mb-3">{noticia.conteudo}</p>
+                  <p className="text-xs text-gray-500">
+                    Publicado em {new Date(noticia.createdAt).toLocaleDateString('pt-BR', {
+                      day: '2-digit',
+                      month: 'short',
+                      year: 'numeric'
+                    })}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => setNoticiaSelecionada(noticia)}
+                  className="flex-1 bg-purple-100 hover:bg-purple-200 text-purple-700 py-2 px-4 rounded-lg font-semibold text-sm transition-all"
+                >
+                  Ver Completo
+                </button>
+                <button 
+                  onClick={() => handleDelete(noticia.id)}
+                  className="bg-red-100 hover:bg-red-200 text-red-700 py-2 px-4 rounded-lg font-semibold text-sm transition-all"
+                >
+                  Deletar
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Modal de Notícia Completa */}
+      {noticiaSelecionada && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-6 z-50" onClick={() => setNoticiaSelecionada(null)}>
+          <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto p-8" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-start mb-6">
+              <div className="flex items-start gap-4">
+                <div className="text-5xl">{noticiaSelecionada.icone}</div>
+                <div>
+                  <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold mb-2 ${
+                    noticiaSelecionada.categoria === 'pesquisa' ? 'bg-blue-100 text-blue-700' :
+                    noticiaSelecionada.categoria === 'evento' ? 'bg-green-100 text-green-700' :
+                    noticiaSelecionada.categoria === 'estudo' ? 'bg-purple-100 text-purple-700' :
+                    noticiaSelecionada.categoria === 'campanha' ? 'bg-orange-100 text-orange-700' :
+                    'bg-gray-100 text-gray-700'
+                  }`}>
+                    {noticiaSelecionada.categoria}
+                  </span>
+                  <h3 className="text-2xl font-bold text-gray-900 mb-2">{noticiaSelecionada.titulo}</h3>
+                  <p className="text-sm text-gray-500">
+                    Publicado em {new Date(noticiaSelecionada.createdAt).toLocaleDateString('pt-BR', { 
+                      day: '2-digit', 
+                      month: 'long', 
+                      year: 'numeric' 
+                    })}
+                  </p>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Por {noticiaSelecionada.autor?.nome}
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setNoticiaSelecionada(null)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="prose max-w-none">
+              <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{noticiaSelecionada.conteudo}</p>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button 
+                onClick={() => setNoticiaSelecionada(null)}
+                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-3 rounded-xl font-semibold transition-all"
+              >
+                Fechar
+              </button>
+              <button 
+                onClick={() => {
+                  handleDelete(noticiaSelecionada.id);
+                }}
+                className="bg-red-600 hover:bg-red-700 text-white py-3 px-6 rounded-xl font-semibold transition-all"
+              >
+                Deletar Publicação
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 };
 

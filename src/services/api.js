@@ -24,20 +24,32 @@ api.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
-      window.location.href = '/login';
+      localStorage.removeItem('usuario');
+      localStorage.removeItem('instituicao');
+      window.location.href = '/';
     }
     return Promise.reject(error);
   }
 );
 
-// Auth
+// Auth - Usuários
 export const cadastrarUsuario = (data) => api.post('/auth/cadastro', data);
 export const loginUsuario = (data) => api.post('/auth/login', data);
+
+// Auth - Instituições
 export const loginInstituicao = (data) => api.post('/auth/login-instituicao', data);
+export const cadastrarInstituicao = (data) => api.post('/instituicoes/cadastro', data);
+export const getPerfilInstituicao = () => api.get('/instituicoes/perfil');
 
 // Relatos
 export const criarRelato = (data) => api.post('/relatos', data);
 export const listarRelatos = () => api.get('/relatos');
 export const getEstatisticas = () => api.get('/relatos/estatisticas');
+
+// Notícias
+export const criarNoticia = (data) => api.post('/noticias', data);
+export const listarNoticias = () => api.get('/noticias');
+export const getNoticia = (id) => api.get(`/noticias/${id}`);
+export const deletarNoticia = (id) => api.delete(`/noticias/${id}`);
 
 export default api;
