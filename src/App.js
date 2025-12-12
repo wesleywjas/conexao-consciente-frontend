@@ -2119,69 +2119,207 @@ const DadosEstatisticasScreen = ({ setScreen }) => {
 };
 
 const NoticiasScreen = ({ setScreen }) => {
-  const noticias = [
-    {
-      icone: '🧩',
-      titulo: 'Pesquisa: dependência digital entre jovens cresceu 30%',
-      data: '05 Nov 2025',
-      categoria: 'Pesquisa'
-    },
-    {
-      icone: '💬',
-      titulo: 'Oficina sobre uso consciente das redes — participe!',
-      data: '10 Nov 2025',
-      categoria: 'Evento'
-    },
-    {
-      icone: '📊',
-      titulo: 'Relatório anual mostra impacto das redes sociais na saúde mental',
-      data: '01 Nov 2025',
-      categoria: 'Estudo'
-    },
-    {
-      icone: '🎯',
-      titulo: 'Nova campanha de conscientização sobre limites digitais',
-      data: '28 Out 2025',
-      categoria: 'Campanha'
+  const [noticias, setNoticias] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [noticiaSelecionada, setNoticiaSelecionada] = useState(null);
+
+  useEffect(() => {
+    carregarNoticias();
+  }, []);
+
+  const carregarNoticias = async () => {
+    try {
+      const response = await listarNoticias();
+      setNoticias(response.data.noticias);
+    } catch (err) {
+      setError('Erro ao carregar notícias');
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
+
+  const getCategoriaStyle = (categoria) => {
+    const styles = {
+      pesquisa: 'bg-blue-100 text-blue-700',
+      evento: 'bg-green-100 text-green-700',
+      estudo: 'bg-purple-100 text-purple-700',
+      campanha: 'bg-orange-100 text-orange-700',
+      noticia: 'bg-gray-100 text-gray-700'
+    };
+    return styles[categoria] || styles.noticia;
+  };
+
+  const getCategoriaNome = (categoria) => {
+    const nomes = {
+      pesquisa: 'Pesquisa',
+      evento: 'Evento',
+      estudo: 'Estudo',
+      campanha: 'Campanha',
+      noticia: 'Notícia'
+    };
+    return nomes[categoria] || 'Notícia';
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen p-6 py-12 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Carregando publicações...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen p-6 py-12">
       <div className="max-w-4xl mx-auto">
         <button 
           onClick={() => setScreen('home')}
-          className="text-blue-600 hover:text-blue-800 mb-6 flex items-center gap-2"
+          className="text-blue-600 hover:text-blue-800 mb-6 flex items-center gap-2 font-semibold"
         >
           ← Voltar
         </button>
         
-        <h2 className="text-4xl font-bold text-blue-900 mb-12">
-          Publicações recentes
-        </h2>
-        
-        <div className="space-y-6">
-          {noticias.map((noticia, index) => (
-            <div key={index} className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all cursor-pointer">
-              <div className="flex items-start gap-4">
-                <div className="text-4xl">{noticia.icone}</div>
-                <div className="flex-1">
-                  <span className="inline-block bg-blue-100 text-blue-700 text-xs font-semibold px-3 py-1 rounded-full mb-2">
-                    {noticia.categoria}
-                  </span>
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">
-                    {noticia.titulo}
-                  </h3>
-                  <p className="text-gray-500 text-sm">{noticia.data}</p>
+        <div className="flex items-center gap-4 mb-4">
+          <Newspaper className="w-12 h-12 text-blue-600" />
+          <div>
+            <h2 className="text-4xl font-bold text-blue-900">Publicações Recentes</h2>
+            <p className="text-gray-600 mt-1">Fique por dentro das últimas novidades e conteúdos</p>
+          </div>
+        </div>
+
+        {error && (
+          <div className="bg-red-50 border-l-4 border-red-600 p-4 rounded mb-6">
+            <p className="text-red-800">{error}</p>
+          </div>
+        )}
+
+        {noticias.length === 0 ? (
+          <div className="text-center py-16 bg-gray-50 rounded-2xl">
+            <Newspaper className="w-20 h-20 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-600 text-lg font-semibold mb-2">Nenhuma publicação disponível ainda</p>
+            <p className="text-gray-500">As instituições podem publicar conteúdos educativos aqui</p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {noticias.map((noticia, index) => (
+              <div 
+                key={noticia.id} 
+                className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all cursor-pointer border border-gray-100"
+                onClick={() => setNoticiaSelecionada(noticia)}
+              >
+                <div className="flex items-start gap-4">
+                  <div className="text-5xl flex-shrink-0">{noticia.icone}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-3 mb-3 flex-wrap">
+                      <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${getCategoriaStyle(noticia.categoria)}`}>
+                        {getCategoriaNome(noticia.categoria)}
+                      </span>
+                      <span className="text-sm text-gray-500">
+                        {new Date(noticia.createdAt).toLocaleDateString('pt-BR', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric'
+                        })}
+                      </span>
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-900 mb-2 hover:text-blue-600 transition-colors">
+                      {noticia.titulo}
+                    </h3>
+                    <p className="text-gray-600 line-clamp-3 mb-3">
+                      {noticia.conteudo}
+                    </p>
+                    <div className="flex items-center gap-2 text-sm text-gray-500">
+                      <Building2 className="w-4 h-4" />
+                      <span>{noticia.autor?.nome || 'Instituição'}</span>
+                      <span>•</span>
+                      <span className="capitalize">{noticia.autor?.tipo || 'Instituição'}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
+            ))}
+          </div>
+        )}
+
+        {noticias.length > 0 && (
+          <div className="mt-8 text-center">
+            <p className="text-gray-500 text-sm">
+              Mostrando {noticias.length} {noticias.length === 1 ? 'publicação' : 'publicações'}
+            </p>
+          </div>
+        )}
+
+        {/* Modal de Notícia Completa */}
+        {noticiaSelecionada && (
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-6 z-50" 
+            onClick={() => setNoticiaSelecionada(null)}
+          >
+            <div 
+              className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto p-8 md:p-12" 
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-between items-start mb-8">
+                <div className="flex items-start gap-6 flex-1">
+                  <div className="text-6xl flex-shrink-0">{noticiaSelecionada.icone}</div>
+                  <div className="flex-1 min-w-0">
+                    <span className={`inline-block px-4 py-2 rounded-full text-sm font-semibold mb-3 ${getCategoriaStyle(noticiaSelecionada.categoria)}`}>
+                      {getCategoriaNome(noticiaSelecionada.categoria)}
+                    </span>
+                    <h3 className="text-3xl font-bold text-gray-900 mb-3">
+                      {noticiaSelecionada.titulo}
+                    </h3>
+                    <div className="flex flex-col gap-2 text-sm text-gray-600">
+                      <div className="flex items-center gap-2">
+                        <Building2 className="w-4 h-4" />
+                        <span className="font-semibold">{noticiaSelecionada.autor?.nome}</span>
+                        <span>•</span>
+                        <span className="capitalize">{noticiaSelecionada.autor?.tipo}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-4 h-4" />
+                        <span>
+                          Publicado em {new Date(noticiaSelecionada.createdAt).toLocaleDateString('pt-BR', { 
+                            day: '2-digit', 
+                            month: 'long', 
+                            year: 'numeric' 
+                          })}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setNoticiaSelecionada(null)}
+                  className="text-gray-400 hover:text-gray-600 flex-shrink-0 ml-4"
+                >
+                  <X className="w-7 h-7" />
+                </button>
+              </div>
+
+              <div className="border-t border-gray-200 pt-8">
+                <div className="prose prose-lg max-w-none">
+                  <p className="text-gray-700 leading-relaxed text-lg whitespace-pre-wrap">
+                    {noticiaSelecionada.conteudo}
+                  </p>
+                </div>
+              </div>
+
+              <div className="border-t border-gray-200 mt-8 pt-6">
+                <button 
+                  onClick={() => setNoticiaSelecionada(null)}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-xl font-semibold transition-all"
+                >
+                  Fechar
+                </button>
+              </div>
             </div>
-          ))}
-        </div>
-        
-        <button className="w-full mt-8 bg-blue-600 hover:bg-blue-700 text-white py-4 px-6 rounded-xl font-semibold transition-all">
-          Ver mais publicações
-        </button>
+          </div>
+        )}
       </div>
     </div>
   );
