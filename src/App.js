@@ -266,10 +266,6 @@ const LoginFamiliarScreen = ({ setScreen }) => {
               >
                 Entrar
               </button>
-
-              <button className="w-full text-blue-600 hover:text-blue-800 text-sm underline">
-                Esqueci minha senha
-              </button>
             </div>
           ) : (
             <div className="space-y-6">
